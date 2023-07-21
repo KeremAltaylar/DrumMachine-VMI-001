@@ -1,0 +1,46 @@
+html, body {
+  margin: 0;
+  padding: 0;
+}
+canvas{
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index:-1;
+}
+
+
+input[type=range] {
+  background: #010101;;
+  
+  -webkit-appearance: none;
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  background: #000000;
+  border: 0.2px solid #ffffff;
+  border-radius: 1.3px;
+  height: 10px;
+  
+  
+  cursor: pointer;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  box-shadow: 1px 1px 1px #000000,0px 0px 10px #0d0d0d;
+  width: 16px;
+  height: 32px;
+  border: 0.2px solid #ffffff;
+  background: #690101;
+  border: 8px #000000;
+  border-color: transparent;
+  -webkit-appearance: none;
+}
+
+
+
+
+
+
+
