@@ -3,45 +3,109 @@
 
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sketch</title>
-  <script id="fxhash-snippet">
-    //---- do not edit the following code (you can indent as you wish)
-    let alphabet = "123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ"
-    var fxhash = "oo" + Array(49).fill(0).map(_=>alphabet[(Math.random()*alphabet.length)|0]).join('')
-    let b58dec = (str) => str.split('').reduce((p,c,i) => p + alphabet.indexOf(c) * (Math.pow(alphabet.length, str.length-i-1)), 0)
-    let fxhashTrunc = fxhash.slice(2)
-    let regex = new RegExp(".{" + ((fxhashTrunc.length/4)|0) + "}", 'g')
-    let hashes = fxhashTrunc.match(regex).map(h => b58dec(h))
-    let sfc32 = (a, b, c, d) => {
-      return () => {
-        a |= 0; b |= 0; c |= 0; d |= 0
-        var t = (a + b | 0) + d | 0
-        d = d + 1 | 0
-        a = b ^ b >>> 9
-        b = c + (c << 3) | 0
-        c = c << 21 | c >>> 11
-        c = c + t | 0
-        return (t >>> 0) / 4294967296
-      }
-    }
-    var fxrand = sfc32(...hashes)
-    //---- /do not edit the following code
-  </script>
-
-  <link rel="stylesheet" type="text/css" href="style.css">
-
-  
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#141b18" />
+  <title>VMI-001 — Drum Machine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Inter:wght@400;500&display=swap" />
+  <link rel="stylesheet" type="text/css" href="style.css" />
   <script src="libraries/p5.js"></script>
   <script src="libraries/p5.sound.js"></script>
-  
-
-
-
 </head>
 
 <body>
+  <div class="app" id="app">
+    <header class="bar">
+      <div class="brand">
+        <span class="mark">VMI-001</span>
+        <h1>Drum<span class="long"> Machine</span></h1>
+      </div>
+      <div class="bar-actions">
+        <button type="button" id="power" class="btn btn-primary">Start audio</button>
+        <button type="button" id="transport" class="btn" aria-pressed="false">Play</button>
+      </div>
+    </header>
+
+    <div class="scope" id="scope"></div>
+
+    <section class="sequencer" id="sequencer" aria-label="Step sequencer"></section>
+
+    <main class="panels">
+      <section class="panel">
+        <h2>Transport</h2>
+        <div class="field">
+          <label for="bpm">Tempo</label><span class="value" id="bpm-out"></span>
+          <input type="range" id="bpm" min="40" max="220" step="1" value="90" />
+        </div>
+        <div class="field">
+          <button type="button" id="clear-pattern" class="btn btn-wide">Clear pattern</button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Filter</h2>
+        <div class="field">
+          <label>Type</label>
+          <div class="segmented" id="filter-seg" role="group" aria-label="Filter type"></div>
+        </div>
+        <div class="field">
+          <label for="cutoff">Cutoff</label><span class="value" id="cutoff-out"></span>
+          <input type="range" id="cutoff" min="80" max="16000" step="10" value="16000" />
+        </div>
+        <div class="field">
+          <label for="res">Resonance</label><span class="value" id="res-out"></span>
+          <input type="range" id="res" min="0" max="20" step="0.1" value="1" />
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Drive</h2>
+        <div class="field">
+          <label for="drive">Overdrive mix</label><span class="value" id="drive-out"></span>
+          <input type="range" id="drive" min="0" max="1" step="0.01" value="0" />
+        </div>
+        <div class="field">
+          <label for="drive-amt">Amount</label><span class="value" id="drive-amt-out"></span>
+          <input type="range" id="drive-amt" min="0" max="1" step="0.01" value="0.3" />
+        </div>
+      </section>
+
+      <section class="panel wide">
+        <h2>Space</h2>
+        <div class="field">
+          <label for="delay-time">Delay time</label><span class="value" id="delay-time-out"></span>
+          <input type="range" id="delay-time" min="0" max="0.6" step="0.005" value="0" />
+        </div>
+        <div class="field">
+          <label for="delay-fb">Delay feedback</label><span class="value" id="delay-fb-out"></span>
+          <input type="range" id="delay-fb" min="0" max="0.9" step="0.01" value="0.5" />
+        </div>
+        <div class="field">
+          <label for="reverb">Reverb mix</label><span class="value" id="reverb-out"></span>
+          <input type="range" id="reverb" min="0" max="1" step="0.01" value="0" />
+        </div>
+        <div class="field">
+          <label for="reverb-time">Reverb time</label><span class="value" id="reverb-time-out"></span>
+          <input type="range" id="reverb-time" min="0.5" max="10" step="0.1" value="3" />
+        </div>
+      </section>
+
+      <section class="panel wide">
+        <h2>Mix</h2>
+        <div class="mix-grid" id="mix-grid"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Master</h2>
+        <div class="field">
+          <label for="volume">Volume</label><span class="value" id="volume-out"></span>
+          <input type="range" id="volume" min="0" max="1" step="0.01" value="0.8" />
+        </div>
+      </section>
+    </main>
+  </div>
+
   <script src="sketch.js"></script>
 </body>
 
