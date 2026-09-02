@@ -110,7 +110,7 @@
 
   function init() {
     Array.prototype.forEach.call(
-      document.querySelectorAll('.panels input[type="range"]'),
+      document.querySelectorAll('.panels input[type="range"], .library input[type="range"]'),
       enhance
     );
 

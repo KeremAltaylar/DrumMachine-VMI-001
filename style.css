@@ -481,19 +481,18 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 /* Row 1: Transport, Pattern, Filter, Drive. Row 2: Space, Saturate.
    Row 3: Mix on its own broad span (16 knobs) plus Master. */
 .panel:nth-of-type(1) { grid-column: span 3; }   /* Transport */
-.panel:nth-of-type(2) { grid-column: span 2; }   /* Pattern */
-.panel:nth-of-type(3) { grid-column: span 4; }   /* Filter */
-.panel:nth-of-type(4) { grid-column: span 3; }   /* Drive */
-.panel:nth-of-type(5) { grid-column: span 6; }   /* Space */
-.panel:nth-of-type(6) { grid-column: span 6; }   /* Saturate */
-.panel:nth-of-type(7) { grid-column: span 10; }  /* Mix */
-.panel:nth-of-type(8) { grid-column: span 2; }   /* Master */
+.panel:nth-of-type(2) { grid-column: span 5; }   /* Filter */
+.panel:nth-of-type(3) { grid-column: span 4; }   /* Drive */
+.panel:nth-of-type(4) { grid-column: span 6; }   /* Space */
+.panel:nth-of-type(5) { grid-column: span 6; }   /* Saturate */
+.panel:nth-of-type(6) { grid-column: span 10; }  /* Mix */
+.panel:nth-of-type(7) { grid-column: span 2; }   /* Master */
 
 /* The old `.wide` rule (span 2 of an auto-fit grid) is meaningless against the
    explicit twelve-column spans above, and it has equal specificity — so it is
    overridden here rather than left to win by source order. */
-.panel.wide:nth-of-type(5) { grid-column: span 6; }
-.panel.wide:nth-of-type(7) { grid-column: span 10; }
+.panel.wide:nth-of-type(4) { grid-column: span 6; }
+.panel.wide:nth-of-type(6) { grid-column: span 10; }
 
 .scope {
   flex: 1 1 auto;
@@ -746,3 +745,23 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 .library { padding-block: 0.22rem; }
 .slot { height: 1.25rem; }
 .sequencer { padding-block: 0.35rem; }
+
+/* The library is one bar: name, slots, then density and the pattern actions.
+   The density knob lies on its side here — a stacked knob cell would double the
+   bar's height for one control. */
+.library-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.library .field.has-knob {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+}
+.library .field.has-knob > .knob { order: 1; width: 1.35rem; }
+.library .field.has-knob > label { order: 2; font-size: 0.54rem; }
+.library .field.has-knob > .value { order: 3; font-size: 0.56rem; }
