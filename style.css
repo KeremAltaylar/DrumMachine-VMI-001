@@ -2,16 +2,22 @@
    the three instruments read as one family. */
 
 :root {
-  --bg: #141b18;
-  --panel: #1c2521;
-  --raised: #243029;
-  --line: rgba(188, 207, 182, 0.14);
-  --line-lit: rgba(188, 207, 182, 0.32);
+  /* The portfolio's OKLCH ladder, shared with the Maqam Synth — same values as
+     the site's global.css, so the instruments and keremaltaylar.github.io stay
+     one family. Do not drop --faint below 71%: it fails AA against --raised. */
+  --sunk: oklch(18% 0.012 162);
+  --bg: oklch(24% 0.014 162);
+  --panel: oklch(28% 0.015 162);
+  --raised: oklch(33% 0.016 162);
+  --line: color-mix(in oklch, var(--sage) 16%, transparent);
+  --line-lit: color-mix(in oklch, var(--sage) 32%, transparent);
 
-  --ink: #e4e7e4;
-  --dim: #93a196;
+  --ink: oklch(92.5% 0.006 150);
+  --dim: oklch(78% 0.011 150);
+  --faint: oklch(71% 0.013 150);
+  --lamp: oklch(88% 0.085 140);
 
-  --sage: #bccfb6;
+  --sage: oklch(83% 0.040 138);
   --amber: #e8b64c;
   --ember: #c4553a;
   --cool: #7fb2c4;
@@ -431,4 +437,175 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
   .panel.wide {
     grid-column: auto;
   }
+}
+
+/* ---- Faceplate ----
+   The panels used to scroll, which hid controls on an instrument. They now hug
+   their knobs and the scope takes the height they give back. */
+
+.panels {
+  flex: 0 0 auto;
+  overflow: visible;
+  grid-template-columns: repeat(12, 1fr);
+  align-items: stretch;
+  gap: clamp(0.5rem, 1.2vw, 0.85rem);
+  padding: clamp(0.5rem, 1.4vh, 0.9rem) clamp(0.85rem, 3vw, 1.75rem);
+}
+
+.panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-around;
+  gap: 0.3rem clamp(0.35rem, 1vw, 0.7rem);
+  padding: 0.55rem 0.7rem 0.6rem;
+  border-radius: calc(var(--radius) / 2);
+  background:
+    linear-gradient(168deg, var(--raised), var(--panel) 62%),
+    var(--panel);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.panel > h2 {
+  flex: 1 0 100%;
+  margin-bottom: 0.25rem;
+  font-size: 0.56rem;
+  letter-spacing: 0.26em;
+  color: var(--faint);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Explicit spans: the same control sits in the same place every time. */
+.panel:nth-of-type(1) { grid-column: span 3; }  /* Transport */
+.panel:nth-of-type(2) { grid-column: span 3; }  /* Filter */
+.panel:nth-of-type(3) { grid-column: span 2; }  /* Drive */
+.panel:nth-of-type(4) { grid-column: span 4; }  /* Space */
+.panel:nth-of-type(5) { grid-column: span 9; }  /* Mix */
+.panel:nth-of-type(6) { grid-column: span 3; }  /* Master */
+
+/* The old `.wide` rule (span 2 of an auto-fit grid) is meaningless against the
+   explicit twelve-column spans above, and it has equal specificity — so it is
+   overridden here rather than left to win by source order. */
+.panel.wide:nth-of-type(4) { grid-column: span 4; }
+.panel.wide:nth-of-type(5) { grid-column: span 9; }
+
+.scope {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: clamp(4.5rem, 14vh, 11rem);
+  background: var(--sunk);
+  box-shadow: inset 0 1px 6px rgba(0, 0, 0, 0.5);
+  border-radius: calc(var(--radius) / 2);
+}
+
+/* ---- Knobs ----
+   The native range input stays inside each knob as the source of truth and the
+   accessibility surface; see knob.js. */
+
+.field.has-knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.field.has-knob > .knob { order: 1; }
+.field.has-knob > label {
+  order: 2;
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  color: var(--dim);
+  text-align: center;
+  line-height: 1.2;
+}
+.field.has-knob > .value {
+  order: 3;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--sage);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.knob {
+  position: relative;
+  width: clamp(2.1rem, 3.4vh, 2.9rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  cursor: ns-resize;
+  touch-action: none;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 34% 28%, var(--raised), var(--sunk) 78%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+.knob svg { width: 118%; height: 118%; overflow: visible; }
+
+.knob-track {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 3;
+  transform: rotate(135deg);
+  transform-origin: 24px 24px;
+  stroke-dasharray: 84.82 113.1;
+}
+
+.knob-arc {
+  fill: none;
+  stroke: var(--sage);
+  stroke-width: 3;
+  stroke-linecap: round;
+  transform: rotate(135deg);
+  transform-origin: 24px 24px;
+}
+
+.knob-pointer {
+  stroke: var(--ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transform-origin: 24px 24px;
+}
+
+.knob:hover .knob-arc,
+.knob.is-focused .knob-arc { stroke: var(--lamp); }
+
+.knob.is-focused { outline: 2px solid var(--lamp); outline-offset: 3px; }
+
+/* The real control, kept operable by keyboard and screen reader but invisible:
+   the knob is its skin. pointer-events off so the native horizontal drag does
+   not fight the knob's vertical one. */
+.knob input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mix-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 4.6rem), 1fr));
+  gap: 0.3rem 0.5rem;
+  width: 100%;
+}
+
+/* Fields that hold a button or a segmented picker keep the old block layout. */
+.field:not(.has-knob) { min-width: 8rem; }
+
+@media (max-width: 900px), (max-height: 620px) {
+  .panels {
+    grid-template-columns: repeat(6, 1fr);
+    flex: 1 1 auto;
+    overflow-y: auto;
+  }
+  .panel:nth-of-type(n) { grid-column: span 3; }
+  .scope { flex: 0 0 auto; }
 }
