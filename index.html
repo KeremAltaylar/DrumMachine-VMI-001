@@ -90,8 +90,8 @@
           <input type="range" id="lfo-depth" min="0" max="1" step="0.01" value="0" />
         </div>
         <div class="field">
-          <label for="lfo-rate">Sweep rate</label><span class="value" id="lfo-rate-out"></span>
-          <input type="range" id="lfo-rate" min="0.05" max="8" step="0.05" value="0.5" />
+          <label for="lfo-div">Sweep rate</label><span class="value" id="lfo-div-out"></span>
+          <input type="range" id="lfo-div" min="0" max="6" step="1" value="2" />
         </div>
       </section>
 
@@ -114,8 +114,8 @@
           <input type="range" id="delay-mix" min="0" max="1" step="0.01" value="0" />
         </div>
         <div class="field">
-          <label for="delay-time">Delay time</label><span class="value" id="delay-time-out"></span>
-          <input type="range" id="delay-time" min="0.02" max="0.6" step="0.005" value="0.25" />
+          <label for="delay-div">Delay time</label><span class="value" id="delay-div-out"></span>
+          <input type="range" id="delay-div" min="0" max="6" step="1" value="3" />
         </div>
         <div class="field">
           <label for="delay-fb">Delay feedback</label><span class="value" id="delay-fb-out"></span>
@@ -128,6 +128,26 @@
         <div class="field">
           <label for="reverb-time">Reverb time</label><span class="value" id="reverb-time-out"></span>
           <input type="range" id="reverb-time" min="0.5" max="10" step="0.1" value="3" />
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Saturate</h2>
+        <div class="field">
+          <label for="sat-low">Low</label><span class="value" id="sat-low-out"></span>
+          <input type="range" id="sat-low" min="0" max="1" step="0.01" value="0" />
+        </div>
+        <div class="field">
+          <label for="sat-high">High</label><span class="value" id="sat-high-out"></span>
+          <input type="range" id="sat-high" min="0" max="1" step="0.01" value="0" />
+        </div>
+        <div class="field">
+          <label for="sat-low-x">Low split</label><span class="value" id="sat-low-x-out"></span>
+          <input type="range" id="sat-low-x" min="60" max="400" step="5" value="180" />
+        </div>
+        <div class="field">
+          <label for="sat-high-x">High split</label><span class="value" id="sat-high-x-out"></span>
+          <input type="range" id="sat-high-x" min="1000" max="8000" step="100" value="3200" />
         </div>
       </section>
 
@@ -148,6 +168,7 @@
 
   <script src="knob.js"></script>
   <script src="voices.js"></script>
+  <script src="saturator.js"></script>
   <script src="sketch.js"></script>
 </body>
 

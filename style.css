@@ -478,19 +478,22 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 }
 
 /* Explicit spans: the same control sits in the same place every time. */
-.panel:nth-of-type(1) { grid-column: span 3; }  /* Transport */
-.panel:nth-of-type(2) { grid-column: span 2; }  /* Pattern */
-.panel:nth-of-type(3) { grid-column: span 4; }  /* Filter */
-.panel:nth-of-type(4) { grid-column: span 3; }  /* Drive */
-.panel:nth-of-type(5) { grid-column: span 4; }  /* Space */
-.panel:nth-of-type(6) { grid-column: span 6; }  /* Mix */
-.panel:nth-of-type(7) { grid-column: span 2; }  /* Master */
+/* Row 1: Transport, Pattern, Filter, Drive. Row 2: Space, Saturate.
+   Row 3: Mix on its own broad span (16 knobs) plus Master. */
+.panel:nth-of-type(1) { grid-column: span 3; }   /* Transport */
+.panel:nth-of-type(2) { grid-column: span 2; }   /* Pattern */
+.panel:nth-of-type(3) { grid-column: span 4; }   /* Filter */
+.panel:nth-of-type(4) { grid-column: span 3; }   /* Drive */
+.panel:nth-of-type(5) { grid-column: span 6; }   /* Space */
+.panel:nth-of-type(6) { grid-column: span 6; }   /* Saturate */
+.panel:nth-of-type(7) { grid-column: span 10; }  /* Mix */
+.panel:nth-of-type(8) { grid-column: span 2; }   /* Master */
 
 /* The old `.wide` rule (span 2 of an auto-fit grid) is meaningless against the
    explicit twelve-column spans above, and it has equal specificity — so it is
    overridden here rather than left to win by source order. */
-.panel.wide:nth-of-type(5) { grid-column: span 4; }
-.panel.wide:nth-of-type(6) { grid-column: span 6; }
+.panel.wide:nth-of-type(5) { grid-column: span 6; }
+.panel.wide:nth-of-type(7) { grid-column: span 10; }
 
 .scope {
   flex: 1 1 auto;
@@ -658,3 +661,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 .track { margin-bottom: 2px; gap: 0.45rem; }
 .steps { gap: 2px; }
 .sequencer { padding: 0.55rem 0.7rem; }
+
+/* Eight panels on three rows plus the Saturate section: another 45px to find.
+   Measured, not guessed — the page must reach zero overflow. */
+.panels { gap: clamp(0.4rem, 0.9vw, 0.6rem); padding-block: clamp(0.35rem, 1vh, 0.6rem); }
+.panel { padding: 0.45rem 0.6rem 0.5rem; }
+.panel > h2 { margin-bottom: 0.18rem; }
+.knob { width: clamp(1.7rem, 2.7vh, 2.4rem); }
+.step { height: 1.2rem; }

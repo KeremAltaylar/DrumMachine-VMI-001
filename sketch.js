@@ -63,6 +63,31 @@ const SCHEDULE_AHEAD = 0.12;
 /** Step value meaning a louder hit. 0 is off, 1 a normal hit. */
 const ACCENT = 2;
 
+/* Every rate in the machine is a division of the bar rather than a free
+   number, so nothing drifts against the pattern when the tempo moves. Values
+   are in beats: a quarter note is 1. */
+const DELAY_DIVISIONS = [
+  { label: '1/16T', beats: 1 / 6 },
+  { label: '1/16', beats: 0.25 },
+  { label: '1/8T', beats: 1 / 3 },
+  { label: '1/8', beats: 0.5 },
+  { label: '1/8.', beats: 0.75 },
+  { label: '1/4', beats: 1 },
+  { label: '1/2', beats: 2 },
+];
+const LFO_DIVISIONS = [
+  { label: '4 bars', beats: 16 },
+  { label: '2 bars', beats: 8 },
+  { label: '1 bar', beats: 4 },
+  { label: '1/2', beats: 2 },
+  { label: '1/4', beats: 1 },
+  { label: '1/8', beats: 0.5 },
+  { label: '1/16', beats: 0.25 },
+];
+let delayDivision = 3;
+let lfoDivision = 2;
+let saturator = null;
+
 let bpm = 90;
 let swing = 0;
 /** Timing looseness as a fraction of a step. 0 is machine-exact. */
@@ -140,11 +165,18 @@ function setup() {
   reverb.disconnect();
   filter.process(reverb);
 
-  /* A limiter on the master, so four voices through drive and reverb cannot run
-     past 0dBFS. It stays inside p5's graph rather than a raw node wired to the
-     destination, so the FFT still analyses what you actually hear. */
+  /* The saturator sits last but one: after the filter, so a sweep does not
+     change how hard it is driven, and before the limiter, so anything it adds
+     is still caught. Creating the Compressor already connects it to the master,
+     so the chain is filter -> saturator -> limiter -> out, with the filter's own
+     direct path to the master removed. */
   compressor = new p5.Compressor();
-  compressor.process(filter, 0.003, 0, 20, -3, 0.15);
+  compressor.set(0.003, 0, 20, -3, 0.15);
+
+  saturator = createSaturator(ctx, { lowCross: 180, highCross: 3200 });
+  filter.disconnect();
+  filter.connect(saturator.input);
+  saturator.output.connect(compressor.input);
 
   buildInterface();
 }
@@ -218,6 +250,30 @@ function windowResized() {
 }
 
 // ---- Sequencer -------------------------------------------------------------
+
+/** Seconds per beat at the current tempo. */
+function beatSeconds() {
+  return 60 / bpm;
+}
+
+/* Re-derive every tempo-locked rate. Called when the tempo moves as well as
+   when a division is picked, which is the whole point: a delay set to 1/8 stays
+   an eighth note at any tempo instead of becoming an arbitrary interval. */
+function applyTempoSync() {
+  const d = DELAY_DIVISIONS[delayDivision];
+  const l = LFO_DIVISIONS[lfoDivision];
+  if (delay && d) {
+    /* p5.Delay caps its line at 2s; a half note below 60bpm would exceed it. */
+    delay.delayTime(Math.min(1.99, d.beats * beatSeconds()));
+  }
+  if (lfo && l) {
+    lfo.frequency.setTargetAtTime(1 / (l.beats * beatSeconds()), getAudioContext().currentTime, 0.02);
+  }
+  const dOut = document.getElementById('delay-div-out');
+  const lOut = document.getElementById('lfo-div-out');
+  if (dOut && d) dOut.textContent = `${d.label} · ${(d.beats * beatSeconds()).toFixed(3)}s`;
+  if (lOut && l) lOut.textContent = `${l.label} · ${(1 / (l.beats * beatSeconds())).toFixed(2)}Hz`;
+}
 
 /** Duration of one sixteenth, in seconds, at the current tempo. */
 function stepDuration() {
@@ -411,16 +467,23 @@ function buildInterface() {
 
   /* Tempo, swing and length feed the grid the scheduler computes from, so they
      take effect on the next scheduled step rather than restarting the pattern. */
-  slider($('bpm'), $('bpm-out'), (v) => `${v} bpm`, (v) => { bpm = v; });
+  slider($('bpm'), $('bpm-out'), (v) => `${v} bpm`, (v) => { bpm = v; applyTempoSync(); });
   slider($('swing'), $('swing-out'), (v) => (v === 0 ? 'straight' : `${Math.round(v * 100)}%`), (v) => { swing = v; });
   slider($('humanize'), $('humanize-out'), (v) => (v === 0 ? 'tight' : `${Math.round(v * 100)}%`), (v) => { humanize = v; });
   slider($('density'), $('density-out'), (v) => `${Math.round(v * 100)}%`, (v) => { density = v; });
   slider($('lfo-depth'), $('lfo-depth-out'), (v) => (v === 0 ? 'off' : v.toFixed(2)),
     (v) => lfoDepth.gain.setTargetAtTime(v * 4000, getAudioContext().currentTime, 0.02));
-  slider($('lfo-rate'), $('lfo-rate-out'), (v) => `${v.toFixed(2)}Hz`,
-    (v) => lfo.frequency.setTargetAtTime(v, getAudioContext().currentTime, 0.02));
+  /* Rate is a division of the bar, not a free frequency — applyTempoSync turns
+     it into Hz, and re-runs whenever the tempo moves. */
+  slider($('lfo-div'), $('lfo-div-out'), () => '', (v) => { lfoDivision = v; applyTempoSync(); });
+
+  slider($('sat-low'), $('sat-low-out'), (v) => (v === 0 ? 'off' : v.toFixed(2)), (v) => saturator.setLow(v));
+  slider($('sat-high'), $('sat-high-out'), (v) => (v === 0 ? 'off' : v.toFixed(2)), (v) => saturator.setHigh(v));
+  slider($('sat-low-x'), $('sat-low-x-out'), (v) => `${Math.round(v)}Hz`, (v) => saturator.setLowCross(v));
+  slider($('sat-high-x'), $('sat-high-x-out'), hz, (v) => saturator.setHighCross(v));
 
   $('random-pattern').addEventListener('click', randomPattern);
+  applyTempoSync();
   slider($('steps'), $('steps-out'), (v) => `${v}`, (v) => {
     patternLength = v;
     if (nextStep >= patternLength) nextStep = 0;
@@ -438,7 +501,7 @@ function buildInterface() {
      internal lowpass at 2300Hz, dulling the whole kit. Each effect now has a
      mix, and every one of them starts at 0 so the kit is heard dry. */
   slider($('delay-mix'), $('delay-mix-out'), (v) => (v === 0 ? 'dry' : v.toFixed(2)), (v) => delay.drywet(v));
-  slider($('delay-time'), $('delay-time-out'), (v) => `${v.toFixed(3)}s`, (v) => delay.delayTime(v));
+  slider($('delay-div'), $('delay-div-out'), () => '', (v) => { delayDivision = v; applyTempoSync(); });
   slider($('delay-fb'), $('delay-fb-out'), (v) => v.toFixed(2), (v) => delay.feedback(v));
   slider($('reverb'), $('reverb-out'), (v) => (v === 0 ? 'dry' : v.toFixed(2)), (v) => reverb.drywet(v));
   slider($('reverb-time'), $('reverb-time-out'), (v) => `${v.toFixed(1)}s`, (v) => reverb.set(v, 10));
