@@ -669,3 +669,80 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 .panel > h2 { margin-bottom: 0.18rem; }
 .knob { width: clamp(1.7rem, 2.7vh, 2.4rem); }
 .step { height: 1.2rem; }
+
+/* ---- Pattern library ----
+   Sits directly under the grid, so a pattern and the slot it lives in read as
+   one thing. */
+.library {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.3rem clamp(0.85rem, 3vw, 1.75rem) 0;
+  padding: 0.35rem 0.7rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) / 2);
+}
+
+.library-label {
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--faint);
+  flex: 0 0 auto;
+}
+
+.slots {
+  display: flex;
+  gap: 0.3rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.slot {
+  flex: 0 1 2.4rem;
+  height: 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--dim);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* A filled slot is lit; an empty one is not. You can see what the library holds
+   without clicking through it. */
+.slot[data-filled='true'] {
+  color: var(--ink);
+  border-color: var(--line-lit);
+  background: linear-gradient(180deg, var(--raised), var(--panel));
+  box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--sage) 22%, transparent);
+}
+
+.slot[aria-pressed='true'] {
+  color: var(--bg);
+  background: var(--sage);
+  border-color: var(--sage);
+}
+
+.slot:hover { border-color: var(--sage); }
+
+.library .btn {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.58rem;
+}
+
+/* The library row costs vertical space the grid has to give back. */
+.step { height: 1.05rem; }
+.sequencer { padding: 0.45rem 0.7rem; }
+.library { padding: 0.28rem 0.7rem; margin-top: 0.25rem; }
+.slot { height: 1.35rem; }
+.library { padding-block: 0.22rem; }
+.slot { height: 1.25rem; }
+.sequencer { padding-block: 0.35rem; }

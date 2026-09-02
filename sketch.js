@@ -354,6 +354,101 @@ function updatePlayhead() {
   });
 }
 
+/* ---- Pattern library ----
+   Eight slots. Clicking one selects it and, if it holds anything, loads it;
+   Save writes the grid into whichever slot is selected. Slots survive a reload
+   via localStorage — a library that empties itself when you close the tab is
+   not a library. Storage can be unavailable (private windows, blocked site
+   data), so every access is guarded and the machine works without it.
+
+   A slot stores the pattern length as well as the steps, because a sixteen-step
+   pattern loaded into an eight-step loop is a different rhythm. */
+const SLOT_COUNT = 8;
+const STORAGE_KEY = 'vmi-001-patterns';
+const slots = new Array(SLOT_COUNT).fill(null);
+let selectedSlot = 0;
+const slotEls = [];
+
+function readStoredSlots() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+    parsed.slice(0, SLOT_COUNT).forEach((slot, i) => {
+      if (slot && Array.isArray(slot.tracks)) slots[i] = slot;
+    });
+  } catch (e) {
+    /* No storage, or corrupt contents: start with an empty library. */
+  }
+}
+
+function writeStoredSlots() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(slots));
+  } catch (e) {
+    /* Nothing to do — the library still works for this session. */
+  }
+}
+
+function saveToSlot(index) {
+  slots[index] = {
+    length: patternLength,
+    tracks: TRACKS.map((t) => t.pattern.slice()),
+  };
+  writeStoredSlots();
+  paintSlots();
+}
+
+function loadFromSlot(index) {
+  const slot = slots[index];
+  if (!slot) return false;
+  TRACKS.forEach((t, ti) => {
+    const stored = slot.tracks[ti];
+    for (let i = 0; i < STEPS; i++) t.pattern[i] = stored ? stored[i] || 0 : 0;
+    stepEls[t.id].forEach((b, i) => paintStep(b, t.pattern[i]));
+  });
+  if (slot.length) {
+    const stepsInput = document.getElementById('steps');
+    stepsInput.value = slot.length;
+    stepsInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  return true;
+}
+
+function paintSlots() {
+  slotEls.forEach((el, i) => {
+    el.setAttribute('aria-pressed', String(i === selectedSlot));
+    el.dataset.filled = String(Boolean(slots[i]));
+    el.setAttribute(
+      'aria-label',
+      `Pattern ${i + 1}${slots[i] ? '' : ', empty'}${i === selectedSlot ? ', selected' : ''}`
+    );
+  });
+}
+
+function buildLibrary() {
+  const host = document.getElementById('slots');
+  readStoredSlots();
+  for (let i = 0; i < SLOT_COUNT; i++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'slot';
+    b.textContent = String(i + 1);
+    b.addEventListener('click', () => {
+      selectedSlot = i;
+      loadFromSlot(i);
+      paintSlots();
+    });
+    host.appendChild(b);
+    slotEls.push(b);
+  }
+  document.getElementById('save-pattern').addEventListener('click', () => {
+    saveToSlot(selectedSlot);
+  });
+  paintSlots();
+}
+
 /* Generate a pattern that sounds like a decision rather than noise.
    Uniform randomness across sixteen steps produces mush every time, so each
    step's chance is weighted three ways: the voice's own busyness, whether the
@@ -442,6 +537,7 @@ function buildInterface() {
   Object.assign(ui, { power: $('power'), transport: $('transport'), clip: $('clip') });
 
   buildSequencer();
+  buildLibrary();
   buildMixer();
 
   ui.power.addEventListener('click', ensureAudio);
