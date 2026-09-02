@@ -609,3 +609,32 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
   .panel:nth-of-type(n) { grid-column: span 3; }
   .scope { flex: 0 0 auto; }
 }
+
+/* ---- Sequencer: accents, length, clipping ---- */
+
+/* An accented step is taller and brighter than a plain one, so the shape of a
+   pattern is legible without playing it. */
+.step[data-accent='true'] {
+  background: var(--track-tone, var(--amber));
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+/* Steps past the pattern length still exist and keep their contents — they are
+   simply not reached this bar. */
+.step.beyond {
+  opacity: 0.28;
+  filter: saturate(0.4);
+}
+
+.clip {
+  align-self: center;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--bg);
+  background: var(--ember);
+  border-radius: 3px;
+  padding: 0.25rem 0.5rem;
+}

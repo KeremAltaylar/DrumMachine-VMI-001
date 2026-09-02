@@ -19,8 +19,7 @@ const FILTERS = [
   { id: 'bandpass', label: 'BP' },
 ];
 
-let fft, distortion, delay, reverb, filter;
-let part;
+let fft, distortion, delay, reverb, filter, compressor;
 let audioLive = false;
 let playing = false;
 /** Phase of the idle drift line, so the scope is never completely still. */
@@ -30,6 +29,39 @@ const ui = {};
 /** track id -> array of 16 step buttons */
 const stepEls = {};
 let litColumn = -1;
+/** Last column actually painted, so draw() is not rewriting classes every frame. */
+let litShown = -2;
+/** Audio-clock time until which the clip indicator stays lit. */
+let clipUntil = 0;
+
+/* ---- Transport ----
+   p5.Part is deliberately not used. p5.Metro.setBPM sets the clock frequency to
+   the BPM number instead of the tick rate, and its ontick guard then drops
+   ticks that arrive early — which quantises every step to a multiple of 1/bpm
+   seconds. Measured against the audio clock, that ran 7% fast at 90bpm and 15%
+   fast at 120 (433.3ms per quarter where 500ms was asked for).
+
+   This is the standard lookahead scheduler instead: a coarse timer wakes often
+   and queues every step falling inside the next SCHEDULE_AHEAD seconds at an
+   exact audio-clock time. Accuracy comes from the audio clock, so the timer
+   only has to be roughly on time. */
+
+/** How often the scheduler wakes, in ms. Must stay well under SCHEDULE_AHEAD. */
+const TICK_MS = 25;
+/** How far ahead hits are queued, in seconds. Covers a stalled main thread. */
+const SCHEDULE_AHEAD = 0.12;
+/** Step value meaning a louder hit. 0 is off, 1 a normal hit. */
+const ACCENT = 2;
+
+let bpm = 90;
+let swing = 0;
+let patternLength = STEPS;
+/** Audio-clock time of the next step, and which step that is. */
+let nextStepTime = 0;
+let nextStep = 0;
+let tickTimer = null;
+/** Steps already scheduled, drained by the playhead as the audio clock passes them. */
+const pending = [];
 
 // ---- p5 --------------------------------------------------------------------
 
@@ -56,6 +88,11 @@ function setup() {
   filter = new p5.Filter('lowpass');
 
   TRACKS.forEach((t) => {
+    /* Level and tuning live on the track, not on the SoundFile: they are handed
+       to play() per hit. Changing a shared gain while a tail is still ringing
+       is a click; setting the gain of the hit about to fire cannot be. */
+    t.level = 0.8;
+    t.rate = 1;
     t.sound.disconnect();
     distortion.process(t.sound);
   });
@@ -66,16 +103,11 @@ function setup() {
   reverb.disconnect();
   filter.process(reverb);
 
-  part = new p5.Part(STEPS, 1 / STEPS);
-  TRACKS.forEach((t) => {
-    /* The metro hands the phrase the exact offset, in seconds from now, at
-       which this step should sound — it fires early on purpose so the hit can
-       be scheduled ahead on the audio clock. Dropping that argument and calling
-       play() bare makes every hit land whenever the main thread gets to it,
-       queued behind canvas repaints and GC, which measured as 17ms of jitter
-       and swings of +/-35ms at 90bpm. Pass it through. */
-    part.addPhrase(new p5.Phrase(t.id, (time) => t.sound.play(time), t.pattern));
-  });
+  /* A limiter on the master, so four voices through drive and reverb cannot run
+     past 0dBFS. It stays inside p5's graph rather than a raw node wired to the
+     destination, so the FFT still analyses what you actually hear. */
+  compressor = new p5.Compressor();
+  compressor.process(filter, 0.003, 0, 20, -3, 0.15);
 
   buildInterface();
 }
@@ -118,6 +150,18 @@ function draw() {
   trace(5, 40);
   trace(1.5, 255);
 
+  /* Clipping is measured on the mastered waveform rather than guessed at from
+     the fader positions, and held briefly so a single overshoot is still
+     visible. The limiter should make this rare; if it lights often, the gain
+     staging upstream is wrong and the limiter is papering over it. */
+  let peak = 0;
+  for (let i = 0; i < form.length; i++) {
+    const v = Math.abs(form[i]);
+    if (v > peak) peak = v;
+  }
+  if (peak >= 0.99) clipUntil = millis() + 700;
+  if (ui.clip) ui.clip.hidden = millis() > clipUntil;
+
   // A slow sine crossing the floor: the panel is alive before the first hit.
   drift += 0.006;
   stroke(188, 207, 182, 40);
@@ -138,17 +182,76 @@ function windowResized() {
 
 // ---- Sequencer -------------------------------------------------------------
 
-/* The metronome fires phrase step `metroTicks % 16` and only then increments its
-   counter, so the step that just sounded is one behind the current tick. */
+/** Duration of one sixteenth, in seconds, at the current tempo. */
+function stepDuration() {
+  return 60 / bpm / 4;
+}
+
+/* Swing delays every second sixteenth. At 0 the grid is straight; two thirds of
+   a step would be a triplet feel, which is why the control stops short of it. */
+function swingDelay(step) {
+  return step % 2 === 1 ? swing * stepDuration() : 0;
+}
+
+/** Queue every step falling inside the lookahead window. */
+function scheduleAhead() {
+  const ctx = getAudioContext();
+  while (nextStepTime < ctx.currentTime + SCHEDULE_AHEAD) {
+    const at = nextStepTime + swingDelay(nextStep);
+
+    TRACKS.forEach((t) => {
+      const velocity = t.pattern[nextStep];
+      if (!velocity) return;
+      /* play() takes seconds from now, so the absolute time is converted back to
+         an offset at the moment of scheduling. Never negative: a late wake still
+         fires, just immediately. */
+      const when = Math.max(0, at - ctx.currentTime);
+      t.sound.play(when, t.rate, t.level * (velocity === ACCENT ? 1 : 0.62));
+    });
+
+    pending.push({ step: nextStep, time: at });
+    nextStepTime += stepDuration();
+    nextStep = (nextStep + 1) % patternLength;
+  }
+}
+
+function startTransport() {
+  const ctx = getAudioContext();
+  nextStep = 0;
+  /* Start a fraction ahead so the first step is scheduled, not raced. */
+  nextStepTime = ctx.currentTime + 0.06;
+  pending.length = 0;
+  scheduleAhead();
+  tickTimer = setInterval(scheduleAhead, TICK_MS);
+}
+
+function stopTransport() {
+  clearInterval(tickTimer);
+  tickTimer = null;
+  pending.length = 0;
+  litColumn = -1;
+}
+
+/* The playhead follows the audio clock rather than a counter, so it lights the
+   step you are actually hearing even when a frame has been dropped. */
 function updatePlayhead() {
-  const column = playing ? (part.metro.metroTicks - 1 + STEPS) % STEPS : -1;
-  if (column === litColumn) return;
+  if (playing) {
+    const now = getAudioContext().currentTime;
+    while (pending.length && pending[0].time <= now) litColumn = pending.shift().step;
+  }
+  const column = playing ? litColumn : -1;
+  if (column === litShown) return;
+  litShown = column;
 
   TRACKS.forEach((t) => {
-    if (litColumn >= 0) stepEls[t.id][litColumn].classList.remove('playing');
-    if (column >= 0) stepEls[t.id][column].classList.add('playing');
+    stepEls[t.id].forEach((b, i) => b.classList.toggle('playing', i === column));
   });
-  litColumn = column;
+}
+
+/** Paint a step button for its value: 0 off, 1 on, 2 accent. */
+function paintStep(button, value) {
+  button.setAttribute('aria-pressed', String(value > 0));
+  button.dataset.accent = String(value === ACCENT);
 }
 
 function buildSequencer() {
@@ -170,11 +273,13 @@ function buildSequencer() {
       b.className = 'step';
       b.style.setProperty('--track-tone', track.tone);
       b.dataset.beat = String(i % 4 === 0);
-      b.setAttribute('aria-pressed', String(Boolean(on)));
       b.setAttribute('aria-label', `${track.label} step ${i + 1}`);
+      paintStep(b, on);
       b.addEventListener('click', () => {
-        track.pattern[i] = track.pattern[i] ? 0 : 1;
-        b.setAttribute('aria-pressed', String(Boolean(track.pattern[i])));
+        /* Off -> on -> accent -> off. The accent is what gives a machine pattern
+           its shape; without it every hit carries the same weight. */
+        track.pattern[i] = (track.pattern[i] + 1) % 3;
+        paintStep(b, track.pattern[i]);
       });
       steps.appendChild(b);
       return b;
@@ -189,7 +294,7 @@ function buildSequencer() {
 
 function buildInterface() {
   const $ = (id) => document.getElementById(id);
-  Object.assign(ui, { power: $('power'), transport: $('transport') });
+  Object.assign(ui, { power: $('power'), transport: $('transport'), clip: $('clip') });
 
   buildSequencer();
   buildMixer();
@@ -199,8 +304,8 @@ function buildInterface() {
   ui.transport.addEventListener('click', () => {
     ensureAudio();
     playing = !playing;
-    if (playing) part.loop();
-    else part.stop();
+    if (playing) startTransport();
+    else stopTransport();
     ui.transport.setAttribute('aria-pressed', String(playing));
     ui.transport.textContent = playing ? 'Stop' : 'Play';
   });
@@ -209,14 +314,24 @@ function buildInterface() {
   $('clear-pattern').addEventListener('click', () => {
     TRACKS.forEach((track) => {
       track.pattern.fill(0);
-      stepEls[track.id].forEach((b) => b.setAttribute('aria-pressed', 'false'));
+      stepEls[track.id].forEach((b) => paintStep(b, 0));
     });
   });
 
   segmented($('filter-seg'), FILTERS.map((f) => f.label), 0, (i) => filter.setType(FILTERS[i].id));
 
-  slider($('bpm'), $('bpm-out'), (v) => `${v} bpm`, (v) => part.setBPM(v));
-  slider($('cutoff'), $('cutoff-out'), hz, (v) => filter.freq(v));
+  /* Tempo, swing and length feed the grid the scheduler computes from, so they
+     take effect on the next scheduled step rather than restarting the pattern. */
+  slider($('bpm'), $('bpm-out'), (v) => `${v} bpm`, (v) => { bpm = v; });
+  slider($('swing'), $('swing-out'), (v) => (v === 0 ? 'straight' : `${Math.round(v * 100)}%`), (v) => { swing = v; });
+  slider($('steps'), $('steps-out'), (v) => `${v}`, (v) => {
+    patternLength = v;
+    if (nextStep >= patternLength) nextStep = 0;
+    TRACKS.forEach((t) => {
+      stepEls[t.id].forEach((b, i) => b.classList.toggle('beyond', i >= patternLength));
+    });
+  });
+  slider($('cutoff'), $('cutoff-out'), hz, (v) => filter.freq(v, 0.02));
   slider($('res'), $('res-out'), (v) => v.toFixed(1), (v) => filter.res(v));
   slider($('drive'), $('drive-out'), (v) => v.toFixed(2), (v) => distortion.drywet(v));
   slider($('drive-amt'), $('drive-amt-out'), (v) => v.toFixed(2), (v) => distortion.set(v, '2x'));
@@ -224,7 +339,7 @@ function buildInterface() {
   slider($('delay-fb'), $('delay-fb-out'), (v) => v.toFixed(2), (v) => delay.feedback(v));
   slider($('reverb'), $('reverb-out'), (v) => v.toFixed(2), (v) => reverb.drywet(v));
   slider($('reverb-time'), $('reverb-time-out'), (v) => `${v.toFixed(1)}s`, (v) => reverb.set(v, 10));
-  slider($('volume'), $('volume-out'), (v) => v.toFixed(2), (v) => masterVolume(v));
+  slider($('volume'), $('volume-out'), (v) => v.toFixed(2), (v) => masterVolume(v, 0.02));
 }
 
 /* Level and tuning per voice: pitching a sample is the cheapest way to turn one
@@ -232,8 +347,8 @@ function buildInterface() {
 function buildMixer() {
   const host = document.getElementById('mix-grid');
   TRACKS.forEach((track) => {
-    host.appendChild(mixField(`${track.label} level`, 0, 1, 0.01, 0.8, (v) => v.toFixed(2), (v) => track.sound.setVolume(v)));
-    host.appendChild(mixField(`${track.label} tune`, 0.5, 2, 0.01, 1, (v) => `${v.toFixed(2)}×`, (v) => track.sound.rate(v)));
+    host.appendChild(mixField(`${track.label} level`, 0, 1, 0.01, 0.8, (v) => v.toFixed(2), (v) => { track.level = v; }));
+    host.appendChild(mixField(`${track.label} tune`, 0.5, 2, 0.01, 1, (v) => `${v.toFixed(2)}×`, (v) => { track.rate = v; }));
   });
 }
 
