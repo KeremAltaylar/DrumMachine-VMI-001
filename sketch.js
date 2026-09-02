@@ -542,6 +542,17 @@ function buildInterface() {
 
   ui.power.addEventListener('click', ensureAudio);
 
+  /* Hiding the grid hands its height to the control surface. On a phone held
+     sideways there is not room for both: with the grid shown the panels were
+     measured at 11px tall, which is no control surface at all. */
+  ui.grid = $('grid-toggle');
+  ui.grid.addEventListener('click', () => {
+    const hidden = document.getElementById('app').classList.toggle('grid-hidden');
+    ui.grid.setAttribute('aria-pressed', String(!hidden));
+    /* The canvas is sized to its container, which just changed. */
+    windowResized();
+  });
+
   ui.transport.addEventListener('click', () => {
     ensureAudio();
     playing = !playing;

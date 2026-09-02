@@ -765,3 +765,35 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 .library .field.has-knob > .knob { order: 1; width: 1.35rem; }
 .library .field.has-knob > label { order: 2; font-size: 0.54rem; }
 .library .field.has-knob > .value { order: 3; font-size: 0.56rem; }
+
+/* ---- Grid toggle ----
+   The step matrix is the tallest thing on the page. Hiding it is what makes the
+   instrument usable on a phone held sideways, where showing both leaves the
+   panels a few pixels tall. */
+.app.grid-hidden .sequencer { display: none; }
+
+@media (max-height: 620px) {
+  /* On a short screen the panels are the point — give them room and let them
+     scroll rather than crushing them to nothing. */
+  .panels { min-height: 8rem; }
+  .scope { min-height: 2.2rem; }
+}
+
+/* ---- Narrow screens ----
+   Measured heights said the library bar fitted at 390px; the render showed the
+   slots crushed under each other and overlapping the density knob, because
+   flex shrank them instead of wrapping. Give the slots a floor and let the bar
+   become two rows when it has to. */
+.slot { flex: 0 0 1.9rem; }
+
+@media (max-width: 620px) {
+  .library { flex-wrap: wrap; row-gap: 0.3rem; }
+  .slots { flex: 1 1 100%; order: 2; }
+  .library-tools { margin-left: auto; order: 1; }
+  .library-label { order: 0; }
+
+  /* One panel per row: two half-width columns at this size stacks every knob
+     into a vertical strip and wraps the labels. */
+  .panels { grid-template-columns: repeat(6, 1fr); }
+  .panel:nth-of-type(n) { grid-column: span 6; }
+}
