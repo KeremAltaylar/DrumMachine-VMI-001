@@ -770,7 +770,8 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
    The step matrix is the tallest thing on the page. Hiding it is what makes the
    instrument usable on a phone held sideways, where showing both leaves the
    panels a few pixels tall. */
-.app.grid-hidden .sequencer { display: none; }
+.app.grid-hidden .sequencer,
+.app.grid-hidden .library { display: none; }
 
 @media (max-height: 620px) {
   /* On a short screen the panels are the point — give them room and let them
@@ -796,4 +797,64 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
      into a vertical strip and wraps the labels. */
   .panels { grid-template-columns: repeat(6, 1fr); }
   .panel:nth-of-type(n) { grid-column: span 6; }
+}
+
+/* ---- Phone, held sideways ----
+   With the grid and pattern bar away, everything else must FIT — a control
+   surface you have to scroll on a 390px-tall screen is barely a control
+   surface. Sized so the seven panels land on exactly three rows. */
+@media (max-height: 460px) and (min-width: 640px) {
+  .app.grid-hidden .panels {
+    overflow: visible;
+    flex: 0 0 auto;
+    gap: 0.3rem;
+    padding: 0.3rem 0.5rem;
+    grid-template-columns: repeat(12, 1fr);
+  }
+  .app.grid-hidden .scope { flex: 1 1 auto; min-height: 1.8rem; }
+
+  /* Row 1: Transport, Filter, Drive. Row 2: Space, Saturate, Master.
+     Row 3: Mix, whose sixteen knobs need the full width. */
+  .app.grid-hidden .panel:nth-of-type(1) { grid-column: span 4; }
+  .app.grid-hidden .panel:nth-of-type(2) { grid-column: span 5; }
+  .app.grid-hidden .panel:nth-of-type(3) { grid-column: span 3; }
+  .app.grid-hidden .panel:nth-of-type(4) { grid-column: span 5; }
+  .app.grid-hidden .panel:nth-of-type(5) { grid-column: span 4; }
+  .app.grid-hidden .panel:nth-of-type(6) { grid-column: span 12; }
+  .app.grid-hidden .panel:nth-of-type(7) { grid-column: span 3; }
+
+  .app.grid-hidden .panel { padding: 0.3rem 0.4rem 0.35rem; gap: 0.15rem 0.3rem; }
+  .app.grid-hidden .panel > h2 { font-size: 0.5rem; letter-spacing: 0.2em; margin-bottom: 0.1rem; }
+  .app.grid-hidden .knob { width: 1.5rem; }
+  .app.grid-hidden .field.has-knob > label { font-size: 0.48rem; }
+  .app.grid-hidden .field.has-knob > .value { font-size: 0.48rem; }
+  .app.grid-hidden .mix-grid { grid-template-columns: repeat(16, 1fr); gap: 0.15rem 0.2rem; }
+  .app.grid-hidden .segmented button { font-size: 0.48rem; padding: 0.2rem 0.3rem; }
+  .app.grid-hidden .bar { padding-block: 0.4rem; }
+  .app.grid-hidden .btn { padding: 0.35rem 0.7rem; font-size: 0.56rem; }
+}
+
+@media (max-height: 460px) and (min-width: 640px) {
+  /* Mix comes before Master in the markup but needs a full row, which pushed
+     Master onto a fourth row and off the screen. Reordering the grid item —
+     not the markup — puts Master alongside Saturate and leaves Mix last. */
+  .app.grid-hidden .panel:nth-of-type(6) { order: 1; }
+  .app.grid-hidden .panel:nth-of-type(7) { order: 0; }
+
+  /* Filter carries six knobs and a picker; at five columns it wrapped to two
+     rows and dragged the whole row's height with it. */
+  .app.grid-hidden .panel:nth-of-type(1) { grid-column: span 3; }
+  .app.grid-hidden .panel:nth-of-type(2) { grid-column: span 6; }
+  .app.grid-hidden .panel:nth-of-type(3) { grid-column: span 3; }
+  .app.grid-hidden .panel:nth-of-type(4) { grid-column: span 5; }
+  .app.grid-hidden .panel:nth-of-type(5) { grid-column: span 4; }
+  .app.grid-hidden .panel:nth-of-type(7) { grid-column: span 3; }
+  .app.grid-hidden .panel:nth-of-type(6) { grid-column: span 12; }
+
+  .app.grid-hidden .knob { width: 1.3rem; }
+  .app.grid-hidden .field.has-knob { gap: 0.02rem; }
+  .app.grid-hidden .field.has-knob > label,
+  .app.grid-hidden .field.has-knob > .value { font-size: 0.44rem; line-height: 1.1; }
+  .app.grid-hidden .panel { padding: 0.25rem 0.35rem 0.3rem; }
+  .app.grid-hidden .panels { gap: 0.25rem; padding: 0.25rem 0.4rem; }
 }
