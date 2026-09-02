@@ -74,6 +74,10 @@
           <div class="segmented" id="filter-seg" role="group" aria-label="Filter type"></div>
         </div>
         <div class="field">
+          <label for="filter-mix">Filter mix</label><span class="value" id="filter-mix-out"></span>
+          <input type="range" id="filter-mix" min="0" max="1" step="0.01" value="0" />
+        </div>
+        <div class="field">
           <label for="cutoff">Cutoff</label><span class="value" id="cutoff-out"></span>
           <input type="range" id="cutoff" min="80" max="16000" step="10" value="16000" />
         </div>
@@ -94,7 +98,7 @@
       <section class="panel">
         <h2>Drive</h2>
         <div class="field">
-          <label for="drive">Overdrive mix</label><span class="value" id="drive-out"></span>
+          <label for="drive">Drive mix</label><span class="value" id="drive-out"></span>
           <input type="range" id="drive" min="0" max="1" step="0.01" value="0" />
         </div>
         <div class="field">
@@ -106,12 +110,16 @@
       <section class="panel wide">
         <h2>Space</h2>
         <div class="field">
+          <label for="delay-mix">Delay mix</label><span class="value" id="delay-mix-out"></span>
+          <input type="range" id="delay-mix" min="0" max="1" step="0.01" value="0" />
+        </div>
+        <div class="field">
           <label for="delay-time">Delay time</label><span class="value" id="delay-time-out"></span>
-          <input type="range" id="delay-time" min="0" max="0.6" step="0.005" value="0" />
+          <input type="range" id="delay-time" min="0.02" max="0.6" step="0.005" value="0.25" />
         </div>
         <div class="field">
           <label for="delay-fb">Delay feedback</label><span class="value" id="delay-fb-out"></span>
-          <input type="range" id="delay-fb" min="0" max="0.9" step="0.01" value="0.5" />
+          <input type="range" id="delay-fb" min="0" max="0.9" step="0.01" value="0.4" />
         </div>
         <div class="field">
           <label for="reverb">Reverb mix</label><span class="value" id="reverb-out"></span>

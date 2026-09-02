@@ -53,62 +53,114 @@
    * @param dest  AudioNode this voice feeds (the effects chain input)
    */
   function createVoice(kind, ctx, dest) {
+    /* A little drift per hit. Two identical hits in a row are the giveaway
+       that a kit is synthetic, so pitch and decay wander slightly each time —
+       the same reason an analogue machine never repeats itself exactly. */
+    const drift = (spread) => 1 + (Math.random() - 0.5) * spread;
+
     const shapes = {
-      /* A long, bright noise tail through a highpass — the open hat. */
+      /* Six detuned squares through a band, the way an 808 hat is built, with a
+         breath of noise over the top. Squares alone are too pure to read as
+         metal; noise alone is too soft. */
       openhat(at, rate, amp) {
-        const src = noise(ctx);
+        const d = drift(0.05);
+        const ratios = [1, 1.36, 1.79, 2.19, 2.68, 3.42];
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 9000 * rate * d;
+        bp.Q.value = 1.4;
         const hp = ctx.createBiquadFilter();
         hp.type = 'highpass';
-        hp.frequency.value = 7000 * rate;
-        const env = envelope(ctx, at, 0.65 * amp, 0.38 / rate);
-        src.connect(hp); hp.connect(env); env.connect(dest);
-        src.start(at);
-        stopAt([src], at + 0.5 / rate);
+        hp.frequency.value = 6500 * rate;
+        const env = envelope(ctx, at, 0.6 * amp, 0.42 * drift(0.2) / rate);
+        const oscs = ratios.map((r) => {
+          const o = ctx.createOscillator();
+          o.type = 'square';
+          o.frequency.value = 320 * r * rate * d;
+          o.connect(bp);
+          o.start(at);
+          return o;
+        });
+        const n = noise(ctx);
+        const ng = ctx.createGain();
+        ng.gain.value = 0.35;
+        n.connect(ng); ng.connect(bp);
+        n.start(at);
+        bp.connect(hp); hp.connect(env); env.connect(dest);
+        stopAt(oscs.concat([n]), at + 0.7 / rate);
       },
 
-      /* A sine whose pitch falls as it decays: the classic tom. */
+      /* Sine with a falling pitch, plus a noise transient so the stick is
+         audible before the skin. Without the transient a tom is just a bloop. */
       tom(at, rate, amp) {
+        const d = drift(0.06);
         const osc = ctx.createOscillator();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(180 * rate, at);
-        osc.frequency.exponentialRampToValueAtTime(60 * rate, at + 0.25);
-        const env = envelope(ctx, at, 0.9 * amp, 0.4);
-        osc.connect(env); env.connect(dest);
+        osc.frequency.setValueAtTime(210 * rate * d, at);
+        osc.frequency.exponentialRampToValueAtTime(58 * rate * d, at + 0.28);
+        const body = envelope(ctx, at, 0.8 * amp, 0.42 * drift(0.15));
+        osc.connect(body); body.connect(dest);
+
+        const n = noise(ctx);
+        const nbp = ctx.createBiquadFilter();
+        nbp.type = 'bandpass';
+        nbp.frequency.value = 2400;
+        const click = envelope(ctx, at, 0.28 * amp, 0.035);
+        n.connect(nbp); nbp.connect(click); click.connect(dest);
+
         osc.start(at);
-        stopAt([osc], at + 0.5);
+        n.start(at);
+        stopAt([osc, n], at + 0.6);
       },
 
-      /* A very short bandpassed noise crack. */
+      /* Metallic crack: three detuned squares and a noise burst, both very
+         short. The detuning is what stops it sounding like a beep. */
       rim(at, rate, amp) {
-        const src = noise(ctx);
+        const d = drift(0.08);
         const bp = ctx.createBiquadFilter();
         bp.type = 'bandpass';
-        bp.frequency.value = 1800 * rate;
-        bp.Q.value = 6;
-        const env = envelope(ctx, at, 0.8 * amp, 0.06);
-        src.connect(bp); bp.connect(env); env.connect(dest);
-        src.start(at);
-        stopAt([src], at + 0.15);
+        bp.frequency.value = 1750 * rate * d;
+        bp.Q.value = 5;
+        const env = envelope(ctx, at, 0.9 * amp, 0.07 * drift(0.25));
+        const oscs = [1, 1.47, 2.13].map((r) => {
+          const o = ctx.createOscillator();
+          o.type = 'square';
+          o.frequency.value = 400 * r * rate * d;
+          o.connect(bp);
+          o.start(at);
+          return o;
+        });
+        const n = noise(ctx);
+        const ng = ctx.createGain();
+        ng.gain.value = 0.5;
+        n.connect(ng); ng.connect(bp);
+        n.start(at);
+        bp.connect(env); env.connect(dest);
+        stopAt(oscs.concat([n]), at + 0.2);
       },
 
-      /* Two detuned squares through a narrow band: metallic, cowbell-ish. */
+      /* Cowbell: two squares a fifth-ish apart through a narrow band, with a
+         short bright head over a longer body — that split is what gives it the
+         clang rather than a hum. */
       bell(at, rate, amp) {
-        const a = ctx.createOscillator();
-        const b = ctx.createOscillator();
-        a.type = b.type = 'square';
-        a.frequency.value = 540 * rate;
-        b.frequency.value = 800 * rate;
+        const d = drift(0.04);
         const bp = ctx.createBiquadFilter();
         bp.type = 'bandpass';
-        bp.frequency.value = 2600 * rate;
-        bp.Q.value = 2;
-        const env = envelope(ctx, at, 0.55 * amp, 0.3);
-        a.connect(bp);
-        b.connect(bp);
-        bp.connect(env); env.connect(dest);
-        a.start(at);
-        b.start(at);
-        stopAt([a, b], at + 0.45);
+        bp.frequency.value = 2700 * rate;
+        bp.Q.value = 2.2;
+        const oscs = [540, 800].map((f) => {
+          const o = ctx.createOscillator();
+          o.type = 'square';
+          o.frequency.value = f * rate * d;
+          o.connect(bp);
+          o.start(at);
+          return o;
+        });
+        const head = envelope(ctx, at, 0.55 * amp, 0.05);
+        const bodyEnv = envelope(ctx, at, 0.3 * amp, 0.34 * drift(0.2));
+        bp.connect(head); head.connect(dest);
+        bp.connect(bodyEnv); bodyEnv.connect(dest);
+        stopAt(oscs, at + 0.5);
       },
     };
 

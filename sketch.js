@@ -134,7 +134,7 @@ function setup() {
   lfoDepth.connect(filter.biquad.frequency);
   lfo.start();
   distortion.disconnect();
-  delay.process(distortion, 0, 0.5, 2300);
+  delay.process(distortion, 0.25, 0.4, 8000);
   delay.disconnect();
   reverb.process(delay, 3, 10);
   reverb.disconnect();
@@ -249,7 +249,14 @@ function scheduleAhead() {
          an offset at the moment of scheduling. Never negative: a late wake still
          fires, just immediately. */
       const when = Math.max(0, at + drift - ctx.currentTime);
-      t.sound.play(when, t.rate, t.level * (velocity === ACCENT ? 1 : 0.62));
+      /* Humanise also moves the pitch a little. A player who is loose in time is
+         loose in tone too, and it stops a repeated sample sounding like a
+         photocopy of itself. Kept to a third of the timing spread so it colours
+         rather than detunes. */
+      const rate = humanize
+        ? t.rate * (1 + (Math.random() - 0.5) * humanize * 0.33)
+        : t.rate;
+      t.sound.play(when, rate, t.level * (velocity === ACCENT ? 1 : 0.62));
     });
 
     pending.push({ step: nextStep, time: at });
@@ -421,13 +428,19 @@ function buildInterface() {
       stepEls[t.id].forEach((b, i) => b.classList.toggle('beyond', i >= patternLength));
     });
   });
+  slider($('filter-mix'), $('filter-mix-out'), (v) => (v === 0 ? 'dry' : v.toFixed(2)), (v) => filter.drywet(v));
   slider($('cutoff'), $('cutoff-out'), hz, (v) => filter.freq(v, 0.02));
   slider($('res'), $('res-out'), (v) => v.toFixed(1), (v) => filter.res(v));
-  slider($('drive'), $('drive-out'), (v) => v.toFixed(2), (v) => distortion.drywet(v));
+  slider($('drive'), $('drive-out'), (v) => (v === 0 ? 'dry' : v.toFixed(2)), (v) => distortion.drywet(v));
   slider($('drive-amt'), $('drive-amt-out'), (v) => v.toFixed(2), (v) => distortion.set(v, '2x'));
+  /* Every p5.Effect is constructed as CrossFade(1) — fully wet. The delay had
+     no mix control at all, so it sat at 100% wet with a 0s delay and its
+     internal lowpass at 2300Hz, dulling the whole kit. Each effect now has a
+     mix, and every one of them starts at 0 so the kit is heard dry. */
+  slider($('delay-mix'), $('delay-mix-out'), (v) => (v === 0 ? 'dry' : v.toFixed(2)), (v) => delay.drywet(v));
   slider($('delay-time'), $('delay-time-out'), (v) => `${v.toFixed(3)}s`, (v) => delay.delayTime(v));
   slider($('delay-fb'), $('delay-fb-out'), (v) => v.toFixed(2), (v) => delay.feedback(v));
-  slider($('reverb'), $('reverb-out'), (v) => v.toFixed(2), (v) => reverb.drywet(v));
+  slider($('reverb'), $('reverb-out'), (v) => (v === 0 ? 'dry' : v.toFixed(2)), (v) => reverb.drywet(v));
   slider($('reverb-time'), $('reverb-time-out'), (v) => `${v.toFixed(1)}s`, (v) => reverb.set(v, 10));
   slider($('volume'), $('volume-out'), (v) => v.toFixed(2), (v) => masterVolume(v, 0.02));
 }
