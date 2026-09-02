@@ -6,11 +6,21 @@ const STEPS = 16;
 
 /* Each track carries its own pattern, so the grid and the sequencer are reading
    from exactly the same array. */
+/* `weight` biases the random generator: how likely this voice is to be placed,
+   and `grid` which subdivision it favours — a kick that lands anywhere sounds
+   like a mistake, a kick that favours downbeats sounds like a decision. */
 const TRACKS = [
-  { id: 'kick', label: 'Kick', file: 'libraries/kick.wav', tone: 'var(--ember)', pattern: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0] },
-  { id: 'snare', label: 'Snare', file: 'libraries/snare.wav', tone: 'var(--clay)', pattern: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] },
-  { id: 'hihat', label: 'Hat', file: 'libraries/Hihat.wav', tone: 'var(--amber)', pattern: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0] },
-  { id: 'clap', label: 'Clap', file: 'libraries/Clap.wav', tone: 'var(--cool)', pattern: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] },
+  { id: 'kick', label: 'Kick', file: 'libraries/kick.wav', tone: 'var(--ember)', weight: 0.9, grid: 4, pattern: [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0] },
+  { id: 'snare', label: 'Snare', file: 'libraries/snare.wav', tone: 'var(--clay)', weight: 0.9, grid: 8, offset: 4, pattern: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0] },
+  { id: 'hihat', label: 'Hat', file: 'libraries/Hihat.wav', tone: 'var(--amber)', weight: 0.8, grid: 2, pattern: [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0] },
+  { id: 'clap', label: 'Clap', file: 'libraries/Clap.wav', tone: 'var(--cool)', weight: 0.4, grid: 8, offset: 4, pattern: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0] },
+
+  /* Synthesised voices — see voices.js. No sample files, and the scheduler
+     cannot tell them apart from the sampled tracks. */
+  { id: 'openhat', label: 'Open', synth: 'openhat', tone: 'var(--sage)', weight: 0.35, grid: 4, offset: 2, pattern: new Array(16).fill(0) },
+  { id: 'tom', label: 'Tom', synth: 'tom', tone: 'var(--clay)', weight: 0.3, grid: 2, pattern: new Array(16).fill(0) },
+  { id: 'rim', label: 'Rim', synth: 'rim', tone: 'var(--dim)', weight: 0.45, grid: 1, pattern: new Array(16).fill(0) },
+  { id: 'bell', label: 'Bell', synth: 'bell', tone: 'var(--lamp)', weight: 0.25, grid: 4, offset: 2, pattern: new Array(16).fill(0) },
 ];
 
 const FILTERS = [
@@ -19,7 +29,7 @@ const FILTERS = [
   { id: 'bandpass', label: 'BP' },
 ];
 
-let fft, distortion, delay, reverb, filter, compressor;
+let fft, distortion, delay, reverb, filter, compressor, lfo, lfoDepth;
 let audioLive = false;
 let playing = false;
 /** Phase of the idle drift line, so the scope is never completely still. */
@@ -55,6 +65,10 @@ const ACCENT = 2;
 
 let bpm = 90;
 let swing = 0;
+/** Timing looseness as a fraction of a step. 0 is machine-exact. */
+let humanize = 0;
+/** How busy the random generator is. */
+let density = 0.5;
 let patternLength = STEPS;
 /** Audio-clock time of the next step, and which step that is. */
 let nextStepTime = 0;
@@ -66,7 +80,7 @@ const pending = [];
 // ---- p5 --------------------------------------------------------------------
 
 function preload() {
-  TRACKS.forEach((t) => {
+  TRACKS.filter((t) => t.file).forEach((t) => {
     t.sound = loadSound(t.file);
   });
 }
@@ -93,9 +107,32 @@ function setup() {
        is a click; setting the gain of the hit about to fire cannot be. */
     t.level = 0.8;
     t.rate = 1;
-    t.sound.disconnect();
-    distortion.process(t.sound);
+    if (t.sound) {
+      t.sound.disconnect();
+      distortion.process(t.sound);
+    }
   });
+
+  /* Synthesised voices feed the same chain, so they are coloured, delayed,
+     reverbed and filtered exactly like the sampled ones. */
+  const ctx = getAudioContext();
+  TRACKS.filter((t) => t.synth).forEach((t) => {
+    t.sound = createDrumVoice(t.synth, ctx, distortion.input);
+  });
+
+  /* A slow sweep on the cutoff. The oscillator drives the filter's own
+     frequency param, so the sweep is sample-accurate and costs no main-thread
+     work — and at depth 0 the gain is zero, so it is genuinely off. */
+  lfo = ctx.createOscillator();
+  lfoDepth = ctx.createGain();
+  lfo.frequency.value = 0.5;
+  lfoDepth.gain.value = 0;
+  /* Not chained: p5.sound replaces AudioNode.prototype.connect with a version
+     that returns undefined, so a.connect(b).connect(c) throws here even though
+     it is valid Web Audio. */
+  lfo.connect(lfoDepth);
+  lfoDepth.connect(filter.biquad.frequency);
+  lfo.start();
   distortion.disconnect();
   delay.process(distortion, 0, 0.5, 2300);
   delay.disconnect();
@@ -202,10 +239,16 @@ function scheduleAhead() {
     TRACKS.forEach((t) => {
       const velocity = t.pattern[nextStep];
       if (!velocity) return;
+      /* Humanise nudges each hit independently, which is why it is applied per
+         voice rather than per step: moving the whole column keeps it machine
+         tight, moving each voice is what a room full of players sounds like. */
+      const drift = humanize
+        ? (Math.random() - 0.5) * humanize * stepDuration()
+        : 0;
       /* play() takes seconds from now, so the absolute time is converted back to
          an offset at the moment of scheduling. Never negative: a late wake still
          fires, just immediately. */
-      const when = Math.max(0, at - ctx.currentTime);
+      const when = Math.max(0, at + drift - ctx.currentTime);
       t.sound.play(when, t.rate, t.level * (velocity === ACCENT ? 1 : 0.62));
     });
 
@@ -245,6 +288,45 @@ function updatePlayhead() {
 
   TRACKS.forEach((t) => {
     stepEls[t.id].forEach((b, i) => b.classList.toggle('playing', i === column));
+  });
+}
+
+/* Generate a pattern that sounds like a decision rather than noise.
+   Uniform randomness across sixteen steps produces mush every time, so each
+   step's chance is weighted three ways: the voice's own busyness, whether the
+   step falls on that voice's preferred subdivision, and how strong a beat it is.
+   Accents land on the strongest beats, which is where a player would put them. */
+function randomPattern() {
+  TRACKS.forEach((t) => {
+    const grid = t.grid || 1;
+    const offset = t.offset || 0;
+    for (let i = 0; i < STEPS; i++) {
+      const onGrid = (i - offset + STEPS) % STEPS % grid === 0;
+      /* Downbeats are likeliest, then half-bar, then quarters, then the rest. */
+      const strength = i % 4 === 0 ? 1 : i % 2 === 0 ? 0.55 : 0.25;
+      /* Density scales between "sparse" and "busy" rather than between "silent"
+         and "busy" — multiplying it straight in produced patterns with no snare
+         at all at 50%, which is not a rhythm. */
+      let chance = t.weight * strength * (onGrid ? 1 : 0.18) * (0.35 + density * 0.9);
+      if (i >= patternLength) chance = 0;
+      let value = Math.random() < chance ? 1 : 0;
+      if (value && i % 4 === 0 && Math.random() < 0.45) value = ACCENT;
+      t.pattern[i] = value;
+    }
+  });
+
+  /* The kick, the backbeat and the hats are what make the rest legible as a
+     pattern. If chance left any of them empty, place the anchor by hand. */
+  const anchor = (id, step, value) => {
+    const t = TRACKS.find((x) => x.id === id);
+    if (t && !t.pattern.some(Boolean) && step < patternLength) t.pattern[step] = value;
+  };
+  anchor('kick', 0, ACCENT);
+  anchor('snare', patternLength > 4 ? 4 : 2, ACCENT);
+  anchor('hihat', 0, 1);
+
+  TRACKS.forEach((t) => {
+    stepEls[t.id].forEach((b, i) => paintStep(b, t.pattern[i]));
   });
 }
 
@@ -324,6 +406,14 @@ function buildInterface() {
      take effect on the next scheduled step rather than restarting the pattern. */
   slider($('bpm'), $('bpm-out'), (v) => `${v} bpm`, (v) => { bpm = v; });
   slider($('swing'), $('swing-out'), (v) => (v === 0 ? 'straight' : `${Math.round(v * 100)}%`), (v) => { swing = v; });
+  slider($('humanize'), $('humanize-out'), (v) => (v === 0 ? 'tight' : `${Math.round(v * 100)}%`), (v) => { humanize = v; });
+  slider($('density'), $('density-out'), (v) => `${Math.round(v * 100)}%`, (v) => { density = v; });
+  slider($('lfo-depth'), $('lfo-depth-out'), (v) => (v === 0 ? 'off' : v.toFixed(2)),
+    (v) => lfoDepth.gain.setTargetAtTime(v * 4000, getAudioContext().currentTime, 0.02));
+  slider($('lfo-rate'), $('lfo-rate-out'), (v) => `${v.toFixed(2)}Hz`,
+    (v) => lfo.frequency.setTargetAtTime(v, getAudioContext().currentTime, 0.02));
+
+  $('random-pattern').addEventListener('click', randomPattern);
   slider($('steps'), $('steps-out'), (v) => `${v}`, (v) => {
     patternLength = v;
     if (nextStep >= patternLength) nextStep = 0;

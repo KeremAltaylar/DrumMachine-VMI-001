@@ -479,17 +479,18 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 
 /* Explicit spans: the same control sits in the same place every time. */
 .panel:nth-of-type(1) { grid-column: span 3; }  /* Transport */
-.panel:nth-of-type(2) { grid-column: span 3; }  /* Filter */
-.panel:nth-of-type(3) { grid-column: span 2; }  /* Drive */
-.panel:nth-of-type(4) { grid-column: span 4; }  /* Space */
-.panel:nth-of-type(5) { grid-column: span 9; }  /* Mix */
-.panel:nth-of-type(6) { grid-column: span 3; }  /* Master */
+.panel:nth-of-type(2) { grid-column: span 2; }  /* Pattern */
+.panel:nth-of-type(3) { grid-column: span 4; }  /* Filter */
+.panel:nth-of-type(4) { grid-column: span 3; }  /* Drive */
+.panel:nth-of-type(5) { grid-column: span 4; }  /* Space */
+.panel:nth-of-type(6) { grid-column: span 6; }  /* Mix */
+.panel:nth-of-type(7) { grid-column: span 2; }  /* Master */
 
 /* The old `.wide` rule (span 2 of an auto-fit grid) is meaningless against the
    explicit twelve-column spans above, and it has equal specificity — so it is
    overridden here rather than left to win by source order. */
-.panel.wide:nth-of-type(4) { grid-column: span 4; }
-.panel.wide:nth-of-type(5) { grid-column: span 9; }
+.panel.wide:nth-of-type(5) { grid-column: span 4; }
+.panel.wide:nth-of-type(6) { grid-column: span 6; }
 
 .scope {
   flex: 1 1 auto;
@@ -638,3 +639,22 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
   border-radius: 3px;
   padding: 0.25rem 0.5rem;
 }
+
+/* Eight voices instead of four: the rows shrink so the whole grid still fits
+   above the faceplate rather than the sequencer taking the screen. */
+.step { height: 1.55rem; }
+.steps { gap: 3px; }
+.track { gap: 0.5rem; margin-bottom: 0.25rem; }
+
+/* Eight voices, seven panels and 32 knobs need a tighter budget than four
+   voices did. Measured at 1538x684 the page overflowed by 99px, which
+   body{overflow:hidden} would have silently clipped rather than shown. */
+.scope { min-height: clamp(3rem, 9vh, 9rem); }
+.step { height: 1.35rem; }
+.knob { width: clamp(1.85rem, 3vh, 2.6rem); }
+.mix-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 4.1rem), 1fr)); }
+.field.has-knob > label,
+.field.has-knob > .value { font-size: 0.54rem; }
+.track { margin-bottom: 2px; gap: 0.45rem; }
+.steps { gap: 2px; }
+.sequencer { padding: 0.55rem 0.7rem; }
